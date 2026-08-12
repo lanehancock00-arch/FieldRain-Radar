@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>FieldRain Radar</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    :root{
+      --bg:#0d1410; --panel:#142019; --panel2:#1b2a21; --line:#2d4033;
+      --text:#f2f6f3; --muted:#9fb3a5; --accent:#8bd450; --blue:#66b9ff;
+      --danger:#ff7a6c; --shadow:0 12px 36px rgba(0,0,0,.28);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+    .app{height:100%;display:grid;grid-template-columns:390px 1fr}
+    .sidebar{padding:18px;overflow:auto;background:linear-gradient(180deg,#111b15,#0d1410);border-right:1px solid #253329;z-index:500}
+    .brand{display:flex;align-items:center;gap:12px;margin:4px 0 18px}
+    .logo{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:var(--accent);color:#10200c;font-size:22px;box-shadow:var(--shadow)}
+    h1{font-size:20px;margin:0}.subtitle{font-size:12px;color:var(--muted);margin-top:2px}
+    .card{background:rgba(27,42,33,.92);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+    .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#c8d5cc;margin:0 0 12px}
+    button{appearance:none;border:0;border-radius:11px;padding:11px 12px;background:#263b2d;color:var(--text);font-weight:700;cursor:pointer;transition:.15s}
+    button:hover{transform:translateY(-1px);background:#315039}
+    button.primary{background:var(--accent);color:#10200c}
+    button.ghost{background:#1c2b21;border:1px solid var(--line)}
+    button.danger{background:#44231f;color:#ffd5cf}
+    button.small{padding:7px 9px;font-size:11px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+    .row{display:flex;align-items:center;gap:8px}
+    input[type="text"]{width:100%;background:#0f1813;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 11px;outline:none}
+    input[type="range"]{width:100%}
+    .switch{display:flex;justify-content:space-between;align-items:center}
+    .toggle{position:relative;width:48px;height:27px;background:#35453a;border-radius:99px;cursor:pointer}
+    .toggle:after{content:"";position:absolute;width:21px;height:21px;border-radius:50%;background:white;left:3px;top:3px;transition:.2s}
+    .toggle.on{background:var(--accent)}.toggle.on:after{left:24px}
+    .metric{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .metricbox{background:#101a14;border:1px solid var(--line);border-radius:13px;padding:11px}
+    .metricbox .label{font-size:11px;color:var(--muted);margin-bottom:4px}.metricbox .value{font-size:21px;font-weight:800}
+    .metricbox .unit{font-size:11px;color:var(--muted);font-weight:600}
+    .status{font-size:12px;color:var(--muted);line-height:1.45}
+    .pin-list{display:flex;flex-direction:column;gap:8px}
+    .pin{padding:10px;border:1px solid var(--line);border-radius:12px;background:#101a14}
+    .pin.active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+    .pin-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .pin strong{font-size:13px}.pin small{display:block;color:var(--muted);margin-top:3px}
+    .pin-actions{display:flex;gap:6px;margin-top:8px}
+    #map{height:100%;width:100%;background:#0f1611}
+    .map-tip{position:absolute;z-index:450;left:410px;top:18px;background:rgba(13,20,16,.9);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;padding:10px 13px;font-size:12px;color:#d9e5dc;box-shadow:var(--shadow);pointer-events:none}
+    .legend{position:absolute;right:14px;bottom:20px;z-index:450;background:rgba(13,20,16,.92);border:1px solid var(--line);border-radius:12px;padding:10px;width:180px;font-size:11px}
+    .legend-title{font-weight:800;margin-bottom:7px}.legend-bar{height:9px;border-radius:99px;background:linear-gradient(90deg,#66ddff,#2a77ff,#35d46b,#f0df4d,#ff823c,#ef3340,#d22ef3)}
+    .legend-labels{display:flex;justify-content:space-between;color:var(--muted);margin-top:5px}
+    .leaflet-control-attribution{font-size:9px!important}
+    .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#17231c;color:#fff}
+    @media(max-width:760px){
+      .app{grid-template-columns:1fr;grid-template-rows:50% 50%}
+      .sidebar{grid-row:2;border-right:0;border-top:1px solid var(--line);padding:12px}
+      #map{grid-row:1}
+      .map-tip{left:12px;top:12px}
+      .legend{display:none}
+      .brand{margin-bottom:10px}.card{margin-bottom:9px}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">🌧</div>
+      <div><h1>FieldRain Radar</h1><div class="subtitle">Rainfall intelligence for your fields</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Map view</h2>
+      <div class="grid2">
+        <button id="streetBtn" class="primary">🗺 Street</button>
+        <button id="satBtn" class="ghost">🛰 Satellite</button>
+      </div>
+      <div class="status" style="margin-top:8px">Satellite imagery uses Esri World Imagery.</div>
+    </div>
+
+    <div class="card">
+      <h2>Add a pin</h2>
+      <div class="grid2">
+        <button class="primary" id="locateBtn">⌖ My Location</button>
+        <button class="ghost" id="pinModeBtn">📍 Drop Pin</button>
+      </div>
+      <div style="height:9px"></div>
+      <input id="fieldName" type="text" placeholder="Pin name (e.g. North Field)" />
+      <div style="height:8px"></div>
+      <button style="width:100%" id="saveBtn">Add Pin to Library</button>
+      <div class="status" style="margin-top:8px">Click anywhere on the map to select a location, then save it to your library.</div>
+    </div>
+
+    <div class="card">
+      <h2>Radar</h2>
+      <div class="switch">
+        <div><strong style="font-size:13px">Live radar overlay</strong><div class="status">Latest available radar frame</div></div>
+        <div id="radarToggle" class="toggle on" role="switch" aria-checked="true"></div>
+      </div>
+      <div style="height:10px"></div>
+      <div class="status">Radar opacity</div>
+      <input id="opacity" type="range" min="0" max="1" step=".05" value=".65"/>
+      <div id="radarTime" class="status">Loading radar…</div>
+    </div>
+
+    <div class="card">
+      <h2>Selected pin rainfall</h2>
+      <div class="metric">
+        <div class="metricbox"><div class="label">CURRENT RATE</div><div class="value" id="currentRain">—</div><div class="unit">in/hr</div></div>
+        <div class="metricbox"><div class="label">PAST 24 HOURS</div><div class="value" id="past24">—</div><div class="unit">inches</div></div>
+        <div class="metricbox"><div class="label">NEXT 24 HOURS</div><div class="value" id="next24">—</div><div class="unit">inches forecast</div></div>
+        <div class="metricbox"><div class="label">TEMPERATURE</div><div class="value" id="temp">—</div><div class="unit">°F</div></div>
+      </div>
+      <div id="weatherStatus" class="status" style="margin-top:10px">Select a point to load precipitation.</div>
+    </div>
+
+    <div class="card">
+      <h2>Pin library</h2>
+      <div id="pinList" class="pin-list"></div>
+      <div id="emptyPins" class="status">No pins saved yet.</div>
+      <div style="height:8px"></div>
+      <button class="danger" id="clearBtn" style="width:100%">Clear Pin Library</button>
+    </div>
+  </aside>
+
+  <main id="map"></main>
+</div>
+<div class="map-tip">Click the map to inspect rainfall or save a new pin.</div>
+<div class="legend">
+  <div class="legend-title">Radar precipitation intensity</div>
+  <div class="legend-bar"></div>
+  <div class="legend-labels"><span>Light</span><span>Heavy</span></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map',{zoomControl:true}).setView([32.60,-82.90],7);
+
+const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19,
+  attribution:'© OpenStreetMap contributors'
+});
+
+const satelliteLayer = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  {
+    maxZoom:19,
+    attribution:'Tiles © Esri'
+  }
+);
+
+streetLayer.addTo(map);
+
+let activeBase = 'street';
+let selectedMarker = null;
+let selected = null;
+let radarLayer = null;
+let radarEnabled = true;
+let libraryMarkers = new Map();
+const $ = id => document.getElementById(id);
+
+function setBase(mode){
+  if(mode===activeBase) return;
+  if(mode==='satellite'){
+    map.removeLayer(streetLayer);
+    satelliteLayer.addTo(map);
+    activeBase='satellite';
+    $('satBtn').className='primary';
+    $('streetBtn').className='ghost';
+  }else{
+    map.removeLayer(satelliteLayer);
+    streetLayer.addTo(map);
+    activeBase='street';
+    $('streetBtn').className='primary';
+    $('satBtn').className='ghost';
+  }
+  if(radarLayer && radarEnabled) radarLayer.bringToFront();
+  libraryMarkers.forEach(m=>m.bringToFront());
+  if(selectedMarker) selectedMarker.bringToFront();
+}
+$('streetBtn').onclick=()=>setBase('street');
+$('satBtn').onclick=()=>setBase('satellite');
+
+function setPoint(lat,lng,name='Selected Pin'){
+  selected = {lat,lng,name};
+  if(selectedMarker) selectedMarker.remove();
+  selectedMarker = L.marker([lat,lng],{draggable:true}).addTo(map)
+    .bindPopup(`<b>${escapeHtml(name)}</b><br>${lat.toFixed(5)}, ${lng.toFixed(5)}<br><small>Unsaved selection</small>`).openPopup();
+  selectedMarker.on('dragend', e => {
+    const p=e.target.getLatLng();
+    setPoint(p.lat,p.lng,$('fieldName').value || name);
+  });
+  loadWeather(lat,lng);
+}
+
+map.on('click', e => setPoint(e.latlng.lat,e.latlng.lng,$('fieldName').value || 'Selected Pin'));
+
+$('locateBtn').onclick = () => {
+  $('weatherStatus').textContent='Getting your location…';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const {latitude,longitude}=pos.coords;
+    map.setView([latitude,longitude],14);
+    setPoint(latitude,longitude,$('fieldName').value || 'My Location');
+  }, err=>{
+    $('weatherStatus').textContent='Location permission was not available. Click the map instead.';
+  },{enableHighAccuracy:true,timeout:10000});
+};
+
+$('pinModeBtn').onclick = () => {
+  $('weatherStatus').textContent='Pin mode ready — click anywhere on the map.';
+};
+
+async function loadRadar(){
+  try{
+    const r=await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    const d=await r.json();
+    const frames=(d.radar && d.radar.past) || [];
+    if(!frames.length) throw new Error('No radar frame');
+    const f=frames[frames.length-1];
+    if(radarLayer) radarLayer.remove();
+    radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/2/1_1.png`,{
+      opacity:+$('opacity').value,
+      zIndex:400,
+      maxNativeZoom:7,
+      maxZoom:19,
+      attribution:'Radar © RainViewer'
+    });
+    if(radarEnabled) radarLayer.addTo(map);
+    $('radarTime').textContent='Radar updated: '+new Date(f.time*1000).toLocaleString();
+  }catch(e){
+    $('radarTime').textContent='Radar overlay unavailable right now.';
+    console.error(e);
+  }
+}
+
+$('radarToggle').onclick=()=>{
+  radarEnabled=!radarEnabled;
+  $('radarToggle').classList.toggle('on',radarEnabled);
+  $('radarToggle').setAttribute('aria-checked',radarEnabled);
+  if(!radarLayer) return;
+  radarEnabled ? radarLayer.addTo(map) : radarLayer.remove();
+};
+$('opacity').oninput=()=> radarLayer && radarLayer.setOpacity(+$('opacity').value);
+
+function inch(mm){ return mm/25.4; }
+function fmt(n,d=2){ return Number.isFinite(n)?n.toFixed(d):'—'; }
+
+async function loadWeather(lat,lng){
+  $('weatherStatus').textContent='Loading precipitation data…';
+  $('currentRain').textContent=$('past24').textContent=$('next24').textContent=$('temp').textContent='…';
+  try{
+    const url=new URL('https://api.open-meteo.com/v1/forecast');
+    url.searchParams.set('latitude',lat);
+    url.searchParams.set('longitude',lng);
+    url.searchParams.set('current','temperature_2m,precipitation,rain,showers');
+    url.searchParams.set('hourly','precipitation');
+    url.searchParams.set('past_days','1');
+    url.searchParams.set('forecast_days','2');
+    url.searchParams.set('temperature_unit','fahrenheit');
+    url.searchParams.set('precipitation_unit','mm');
+    url.searchParams.set('timezone','auto');
+    const r=await fetch(url);
+    if(!r.ok) throw new Error('weather request failed');
+    const d=await r.json();
+    const currentTime=new Date(d.current.time).getTime();
+    const times=d.hourly.time.map(t=>new Date(t).getTime());
+    const p=d.hourly.precipitation.map(Number);
+    const hour=3600000;
+    let past=0, future=0;
+    times.forEach((t,i)=>{
+      if(t>currentTime-24*hour && t<=currentTime) past+=p[i]||0;
+      if(t>currentTime && t<=currentTime+24*hour) future+=p[i]||0;
+    });
+    $('currentRain').textContent=fmt(inch(Number(d.current.precipitation)||0),3);
+    $('past24').textContent=fmt(inch(past),2);
+    $('next24').textContent=fmt(inch(future),2);
+    $('temp').textContent=fmt(Number(d.current.temperature_2m),0);
+    $('weatherStatus').textContent=`${lat.toFixed(5)}, ${lng.toFixed(5)} • Updated ${new Date(d.current.time).toLocaleString()}`;
+  }catch(e){
+    $('currentRain').textContent=$('past24').textContent=$('next24').textContent=$('temp').textContent='—';
+    $('weatherStatus').textContent='Could not load precipitation data.';
+    console.error(e);
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+}
+
+function pins(){ try{return JSON.parse(localStorage.getItem('fieldrain.pins')||'[]')}catch{return []} }
+function savePins(a){
+  localStorage.setItem('fieldrain.pins',JSON.stringify(a));
+  renderPins();
+  renderLibraryMarkers();
+}
+
+$('saveBtn').onclick=()=>{
+  if(!selected){ $('weatherStatus').textContent='Select a point on the map first.'; return; }
+  const a=pins();
+  const name=$('fieldName').value.trim() || `Pin ${a.length+1}`;
+  const pin={name,lat:selected.lat,lng:selected.lng,id:Date.now()};
+  a.push(pin);
+  savePins(a);
+  $('fieldName').value='';
+  activatePin(pin.id);
+};
+
+$('clearBtn').onclick=()=>{ 
+  if(confirm('Delete every pin in your library?')) {
+    savePins([]);
+    if(selectedMarker){ selectedMarker.remove(); selectedMarker=null; }
+    selected=null;
+  }
+};
+
+function renderPins(){
+  const a=pins(), list=$('pinList');
+  list.innerHTML='';
+  $('emptyPins').style.display=a.length?'none':'block';
+  a.forEach(f=>{
+    const el=document.createElement('div');
+    el.className='pin';
+    el.dataset.id=f.id;
+    el.innerHTML=`
+      <div class="pin-top">
+        <div><strong>${escapeHtml(f.name)}</strong><small>${f.lat.toFixed(5)}, ${f.lng.toFixed(5)}</small></div>
+      </div>
+      <div class="pin-actions">
+        <button class="small" data-action="open">Open</button>
+        <button class="small ghost" data-action="rename">Rename</button>
+        <button class="small danger" data-action="delete">Delete</button>
+      </div>`;
+    el.querySelector('[data-action="open"]').onclick=()=>activatePin(f.id);
+    el.querySelector('[data-action="rename"]').onclick=()=>{
+      const newName=prompt('Rename pin:',f.name);
+      if(newName===null) return;
+      const updated=pins().map(p=>p.id===f.id?{...p,name:newName.trim()||p.name}:p);
+      savePins(updated);
+    };
+    el.querySelector('[data-action="delete"]').onclick=()=>{
+      const updated=pins().filter(p=>p.id!==f.id);
+      savePins(updated);
+    };
+    list.appendChild(el);
+  });
+}
+
+function renderLibraryMarkers(){
+  libraryMarkers.forEach(m=>m.remove());
+  libraryMarkers.clear();
+  pins().forEach(f=>{
+    const m=L.marker([f.lat,f.lng],{
+      title:f.name
+    }).addTo(map)
+      .bindTooltip(escapeHtml(f.name),{direction:'top'})
+      .bindPopup(`<b>${escapeHtml(f.name)}</b><br>${f.lat.toFixed(5)}, ${f.lng.toFixed(5)}<br><button onclick="window.openLibraryPin(${f.id})">Open rainfall</button>`);
+    m.on('click',()=>loadWeather(f.lat,f.lng));
+    libraryMarkers.set(f.id,m);
+  });
+}
+
+window.openLibraryPin = (id)=>activatePin(id);
+
+function activatePin(id){
+  const f=pins().find(p=>p.id===id);
+  if(!f) return;
+  document.querySelectorAll('.pin').forEach(x=>x.classList.toggle('active',Number(x.dataset.id)===id));
+  map.setView([f.lat,f.lng],15);
+  $('fieldName').value=f.name;
+  selected={...f};
+  if(selectedMarker){ selectedMarker.remove(); selectedMarker=null; }
+  const m=libraryMarkers.get(id);
+  if(m) m.openPopup();
+  loadWeather(f.lat,f.lng);
+}
+
+renderPins();
+renderLibraryMarkers();
+loadRadar();
+setInterval(loadRadar,10*60*1000);
+</script>
+</body>
+</html>
