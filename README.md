@@ -34,6 +34,7 @@ Then open:
 - Draw actual field boundaries/polygons
 - Calculate acreage
 - Average radar-derived rainfall across each whole field
+- FieldRain Radar live site
 - Store 1h, 3h, 6h, 12h, 24h, 48h, and 72h rainfall totals
 - Color-code pins/fields based on recent rainfall
 - Add rainfall alerts
